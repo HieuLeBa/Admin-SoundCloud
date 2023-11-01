@@ -1,82 +1,132 @@
 import { useEffect, useState } from "react";
-import { Table, Button, Modal, Input } from "antd";
+import { Table, Button, notification, Popconfirm } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import CreateUserModal from "./create.user.modal";
+import UpdateUserModal from "./update.user.modal";
 
-interface IUser {
+export interface IUser {
   email: string;
   _id: string;
   name: string;
   role: string;
+  address: string;
+  password: string;
+  age: string;
+  gender: string;
 }
-
-const columns: ColumnsType<IUser> = [
-  {
-    title: "Email",
-    dataIndex: "email",
-    render: (value, record) => {
-      return <a>{record.email}</a>;
-    },
-  },
-  {
-    title: "Name",
-    dataIndex: "name",
-    key: "age",
-  },
-  {
-    title: "Role",
-    dataIndex: "role",
-    key: "address",
-  },
-
-  //   {
-  //     title: "Action",
-  //     key: "action",
-  //     render: (_, record) => (
-  //       <Space size="middle">
-  //         <a>Invite {record.name}</a>
-  //         <a>Delete</a>
-  //       </Space>
-  //     ),
-  //   },
-];
 
 const UsersTable = () => {
   const [listUsers, setListUsers] = useState([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [age, setAge] = useState("");
-  const [gender, setGender] = useState("");
-  const [address, setAddress] = useState("");
-  const [role, setRole] = useState("");
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [dataUpdate, setDataUpdate] = useState<null | IUser>(null);
 
-  const showModal = () => {
-    setIsModalOpen(true);
-  };
+  const access_token = localStorage.getItem("access_token") as string;
 
-  const handleOk = () => {
-    setIsModalOpen(false);
-  };
-
-  const handleCancel = () => {
-    setIsModalOpen(false);
-  };
+  const [meta, setMeta] = useState({
+    current: 1,
+    pageSize: 5,
+    pages: 0,
+    total: 0,
+  });
 
   useEffect(() => {
     getData();
   }, []);
-  const getData = async () => {
-    const access_token =
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0b2tlbiBsb2dpbiIsImlzcyI6ImZyb20gc2VydmVyIiwiX2lkIjoiNjUzM2UyZmRkMDUxOGRjNmM2OTU2ZjBlIiwiZW1haWwiOiJhZG1pbkBnbWFpbC5jb20iLCJhZGRyZXNzIjoiVmlldE5hbSIsImlzVmVyaWZ5Ijp0cnVlLCJuYW1lIjoiSSdtIGFkbWluIiwidHlwZSI6IlNZU1RFTSIsInJvbGUiOiJBRE1JTiIsImdlbmRlciI6Ik1BTEUiLCJhZ2UiOjY5LCJpYXQiOjE2OTg3NjIwOTUsImV4cCI6MTc4NTE2MjA5NX0.JZtMVFbBCUNiWnGFGGQVxnOZSjhJQx_Yd3O6HdiYEes";
-    const res = await fetch("http://localhost:8000/api/v1/users/all", {
+
+  const getData = async () => {};
+
+  const confirm = async (user: IUser) => {
+    const res = await fetch(`http://localhost:8000/api/v1/users/${user._id}`, {
+      method: "DELETE",
       headers: {
         Authorization: `Bearer ${access_token}`,
         "Content-Type": "application/json",
       },
     });
     const d = await res.json();
+    if (d.data) {
+      notification.success({
+        message: "Delete success",
+      });
+      await getData();
+    } else {
+      notification.error({
+        message: JSON.stringify(d.message),
+      });
+    }
+  };
+
+  const columns: ColumnsType<IUser> = [
+    {
+      title: "Email",
+      dataIndex: "email",
+      render: (value, record) => {
+        return <a>{record.email}</a>;
+      },
+    },
+    {
+      title: "Name",
+      dataIndex: "name",
+    },
+    {
+      title: "Role",
+      dataIndex: "role",
+    },
+
+    {
+      title: "Action",
+      render: (value, record) => {
+        return (
+          <div>
+            <button
+              onClick={() => {
+                setDataUpdate(record);
+                setIsUpdateModalOpen(true);
+              }}
+            >
+              Edit
+            </button>
+            <Popconfirm
+              title="Delete the task"
+              description={`Are you sure to delete this user. name = ${record.name}`}
+              onConfirm={() => confirm(record)}
+              okText="Yes"
+              cancelText="No"
+            >
+              <Button style={{ marginLeft: 20 }} danger>
+                Delete
+              </Button>
+            </Popconfirm>
+          </div>
+        );
+      },
+    },
+  ];
+
+  const handleOnChange = async (page: number, pageSize: number) => {
+    const res = await fetch(
+      `http://localhost:8000/api/v1/users?current=${page}&pageSize=${pageSize}`,
+      {
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    const d = await res.json();
+    if (!d.data) {
+      notification.error({
+        message: JSON.stringify(d.message),
+      });
+    }
     setListUsers(d.data.result);
+    setMeta({
+      current: d.data.meta.current,
+      pageSize: d.data.meta.pageSize,
+      pages: d.data.meta.pages,
+      total: d.data.meta.total,
+    });
   };
 
   return (
@@ -90,65 +140,41 @@ const UsersTable = () => {
       >
         <h2>Table Users</h2>
         <div>
-          <Button type="primary" onClick={showModal}>
+          <Button type="primary" onClick={() => setIsCreateModalOpen(true)}>
             Add new
           </Button>
         </div>
       </div>
-      <Table columns={columns} dataSource={listUsers} rowKey={"_id"} />;
-      <Modal
-        title="Add new user"
-        open={isModalOpen}
-        onOk={handleOk}
-        onCancel={handleCancel}
-      >
-        <div>
-          <label>Name:</label>
-          <Input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </div>
-        <div>
-          <label>Email:</label>
-          <Input
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
-        </div>
-        <div>
-          <label>Password:</label>
-          <Input
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-        </div>
-        <div>
-          <label>Age:</label>
-          <Input value={age} onChange={(event) => setAge(event.target.value)} />
-        </div>
-        <div>
-          <label>Gender:</label>
-          <Input
-            value={gender}
-            onChange={(event) => setGender(event.target.value)}
-          />
-        </div>
-        <div>
-          <label>Address:</label>
-          <Input
-            value={address}
-            onChange={(event) => setAddress(event.target.value)}
-          />
-        </div>
-        <div>
-          <label>Role:</label>
-          <Input
-            value={role}
-            onChange={(event) => setRole(event.target.value)}
-          />
-        </div>
-      </Modal>
+      <Table
+        columns={columns}
+        dataSource={listUsers}
+        rowKey={"_id"}
+        pagination={{
+          current: meta.current,
+          pageSize: meta.pageSize,
+          total: meta.total,
+          showTotal: (total, range) =>
+            `${range[0]}-${range[1]} of ${total} items`,
+          onChange: (page: number, pageSize: number) =>
+            handleOnChange(page, pageSize),
+          showSizeChanger: true,
+        }}
+      />
+      ;
+      <CreateUserModal
+        access_token={access_token}
+        getData={getData}
+        isCreateModalOpen={isCreateModalOpen}
+        setIsCreateModalOpen={setIsCreateModalOpen}
+      />
+      <UpdateUserModal
+        access_token={access_token}
+        getData={getData}
+        isUpdateModalOpen={isUpdateModalOpen}
+        setIsUpdateModalOpen={setIsUpdateModalOpen}
+        dataUpdate={dataUpdate}
+        setDataUpdate={setDataUpdate}
+      />
     </div>
   );
 };
